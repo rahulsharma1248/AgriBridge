@@ -1,5 +1,6 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowRight, BadgeCheck, CheckCircle2, CircleAlert, Leaf, LogOut, Menu, Package, Plus, Search, ShieldCheck, Sprout, Truck, UserRound, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { FormEvent } from "react";
+import { ArrowRight, BadgeCheck, CheckCircle2, CircleAlert, Leaf, LogOut, Package, Plus, Search, ShieldCheck, Sprout, Truck, X } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "./lib/supabase";
 
 type Profile = { id: string; full_name: string | null; account_type: "buyer" | "seller" | "both" };
