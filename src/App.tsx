@@ -1,149 +1,164 @@
-import {
-  ArrowRight,
-  ArrowUpRight,
-  BadgeCheck,
-  BarChart3,
-  ChevronDown,
-  CircleHelp,
-  Globe2,
-  Leaf,
-  Menu,
-  MessageCircle,
-  PackageSearch,
-  Search,
-  ShieldCheck,
-  Truck,
-  Wheat,
-  X
-} from "lucide-react";
-import { useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { ArrowRight, BadgeCheck, CheckCircle2, CircleAlert, Leaf, LogOut, Menu, Package, Plus, Search, ShieldCheck, Sprout, Truck, UserRound, X } from "lucide-react";
+import { supabase, isSupabaseConfigured } from "./lib/supabase";
 
-const categories = [
-  { name: "Grains & cereals", detail: "Wheat, rice, maize and more", icon: Wheat },
-  { name: "Fruits", detail: "Fresh seasonal produce", icon: Leaf },
-  { name: "Vegetables", detail: "Farm-fresh daily supply", icon: PackageSearch },
-  { name: "Logistics", detail: "Move produce with confidence", icon: Truck }
-];
+type Profile = { id: string; full_name: string | null; account_type: "buyer" | "seller" | "both" };
+type Listing = { id: string; seller_id: string; produce_name: string; category: string | null; description: string | null; quantity: number; unit: string; asking_price: number | null; location: string; available_from: string | null; status: string; created_at: string };
+type Requirement = { id: string; buyer_id: string; produce_name: string; category: string | null; description: string | null; quantity: number; unit: string; delivery_location: string; needed_by: string | null; status: string; created_at: string };
+type Enquiry = { id: string; listing_id: string; buyer_id: string; seller_id: string; message: string; status: string; created_at: string };
 
-const steps = [
-  { number: "01", title: "List or discover produce", text: "Sellers share what is available. Buyers describe what they need, with clear quantities and locations." },
-  { number: "02", title: "Connect and compare", text: "Explore relevant opportunities, ask questions and compare commercial details before making a decision." },
-  { number: "03", title: "Coordinate the movement", text: "Bring transport discussions and delivery updates into a clearer, more organized workflow." }
-];
+const money = (value: number | null) => value == null ? "Price on discussion" : "₹" + Number(value).toLocaleString("en-IN");
+const dateLabel = (value: string | null) => value ? new Date(value + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "Not specified";
 
 function App() {
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [session, setSession] = useState<any>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [authMode, setAuthMode] = useState<"login" | "signup">("signup");
+  const [authBusy, setAuthBusy] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+  const [tab, setTab] = useState("market");
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [requirements, setRequirements] = useState<Requirement[]>([]);
+  const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("All");
+  const [showListingForm, setShowListingForm] = useState(false);
+  const [showRequirementForm, setShowRequirementForm] = useState(false);
+  const [enquiryTarget, setEnquiryTarget] = useState<Listing | null>(null);
 
-  return (
-    <div className="site-shell">
-      <div className="announcement">
-        <span className="announcement-dot" />
-        A clearer way to connect agricultural supply and demand
-        <ArrowUpRight size={14} />
-      </div>
+  const loadData = useCallback(async (userId: string) => {
+    if (!supabase) return;
+    const [p, l, r, e] = await Promise.all([
+      supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
+      supabase.from("produce_listings").select("*").order("created_at", { ascending: false }),
+      supabase.from("buyer_requirements").select("*").order("created_at", { ascending: false }),
+      supabase.from("enquiries").select("*").order("created_at", { ascending: false })
+    ]);
+    if (p.error) setError(p.error.message);
+    if (p.data) setProfile(p.data as Profile);
+    if (l.error) setError(l.error.message); else setListings((l.data ?? []) as Listing[]);
+    if (r.error) setError(r.error.message); else setRequirements((r.data ?? []) as Requirement[]);
+    if (e.error) setError(e.error.message); else setEnquiries((e.data ?? []) as Enquiry[]);
+  }, []);
 
-      <header className="header">
-        <a className="brand" href="#home" aria-label="AgriBridge home">
-          <span className="brand-mark"><Leaf size={22} strokeWidth={2.2} /></span>
-          <span>Agri<span>Bridge</span></span>
-        </a>
+  useEffect(() => {
+    if (!supabase) { setLoading(false); return; }
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      if (data.session?.user) void loadData(data.session.user.id);
+      setLoading(false);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+      if (nextSession?.user) {
+        window.setTimeout(() => void loadData(nextSession.user.id), 0);
+      } else {
+        setProfile(null); setListings([]); setRequirements([]); setEnquiries([]);
+      }
+    });
+    return () => listener.subscription.unsubscribe();
+  }, [loadData]);
 
-        <button className="mobile-menu" onClick={() => setMenuOpen(!menuOpen)} aria-label="Toggle navigation">
-          {menuOpen ? <X /> : <Menu />}
-        </button>
+  const filteredListings = useMemo(() => listings.filter((item) =>
+    item.status === "published" &&
+    (categoryFilter === "All" || item.category === categoryFilter) &&
+    (item.produce_name + " " + (item.location ?? "") + " " + (item.description ?? "")).toLowerCase().includes(search.toLowerCase())
+  ), [listings, search, categoryFilter]);
 
-        <nav className={menuOpen ? "nav nav-open" : "nav"}>
-          <a href="#how-it-works" onClick={() => setMenuOpen(false)}>How it works</a>
-          <a href="#marketplace" onClick={() => setMenuOpen(false)}>Explore</a>
-          <a href="#trust" onClick={() => setMenuOpen(false)}>Why AgriBridge</a>
-          <a href="#support" onClick={() => setMenuOpen(false)}>Help</a>
-        </nav>
+  async function handleAuth(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!supabase) return;
+    setError(""); setNotice(""); setAuthBusy(true);
+    const form = new FormData(event.currentTarget);
+    const email = String(form.get("email") ?? "").trim();
+    const password = String(form.get("password") ?? "");
+    try {
+      if (authMode === "signup") {
+        const full_name = String(form.get("full_name") ?? "").trim();
+        const account_type = String(form.get("account_type") ?? "buyer");
+        const { data, error: authError } = await supabase.auth.signUp({ email, password, options: { data: { full_name, account_type } } });
+        if (authError) throw authError;
+        if (data.session) {
+          await supabase.from("profiles").update({ full_name, account_type }).eq("id", data.user!.id);
+          setNotice("Your account has been created.");
+        } else {
+          setNotice("Check your email for the confirmation link. After confirming, return here and log in.");
+        }
+      } else {
+        const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
+        if (authError) throw authError;
+      }
+    } catch (e) { setError(e instanceof Error ? e.message : "Authentication failed."); }
+    finally { setAuthBusy(false); }
+  }
 
-        <div className="header-actions">
-          <button className="button button-quiet">Log in</button>
-          <button className="button button-dark">Get started <ArrowRight size={16} /></button>
-        </div>
-      </header>
+  async function signOut() { if (supabase) await supabase.auth.signOut(); setTab("market"); }
 
-      <main id="home">
-        <section className="hero">
-          <div className="hero-copy">
-            <div className="eyebrow"><span /> AGRICULTURE, CONNECTED</div>
-            <h1>From the field<br />to the <span>right market.</span></h1>
-            <p className="hero-description">
-              A more connected agricultural ecosystem. Discover produce, connect with the right people and coordinate what happens next.
-            </p>
-            <div className="hero-actions">
-              <a className="button button-primary" href="#marketplace">Explore AgriBridge <ArrowRight size={17} /></a>
-              <a className="text-link" href="#how-it-works">See how it works <ArrowUpRight size={16} /></a>
-            </div>
-            <div className="hero-proof">
-              <div className="proof-icon"><ShieldCheck size={18} /></div>
-              <div><strong>Built around clarity and trust</strong><span>Useful information. Clearer coordination.</span></div>
-            </div>
-          </div>
+  async function createListing(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!supabase || !session?.user) return;
+    setError(""); setNotice("");
+    const f = new FormData(event.currentTarget);
+    const row = { seller_id: session.user.id, produce_name: String(f.get("produce_name")).trim(), category: String(f.get("category")), description: String(f.get("description") ?? "").trim(), quantity: Number(f.get("quantity")), unit: String(f.get("unit")), asking_price: f.get("asking_price") ? Number(f.get("asking_price")) : null, location: String(f.get("location")).trim(), available_from: String(f.get("available_from") || "") || null, status: "published" };
+    const { error: insertError } = await supabase.from("produce_listings").insert(row);
+    if (insertError) setError(insertError.message); else { setNotice("Your produce listing is now published."); setShowListingForm(false); await loadData(session.user.id); }
+  }
 
-          <div className="hero-visual" aria-label="Illustration of agricultural fields and harvest">
-            <div className="visual-orbit orbit-one" />
-            <div className="visual-orbit orbit-two" />
-            <div className="sun" />
-            <div className="field field-back" />
-            <div className="field field-mid" />
-            <div className="field field-front" />
-            <div className="visual-label label-top"><span className="label-icon"><Wheat size={16} /></span><span><b>Produce supply</b><small>Information that connects</small></span></div>
-            <div className="visual-label label-bottom"><span className="label-icon label-truck"><Truck size={17} /></span><span><b>Logistics coordination</b><small>From pickup to delivery</small></span></div>
-            <div className="visual-caption">GROWING CONNECTIONS <span>✳</span></div>
-          </div>
-        </section>
+  async function createRequirement(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!supabase || !session?.user) return;
+    setError(""); setNotice("");
+    const f = new FormData(event.currentTarget);
+    const row = { buyer_id: session.user.id, produce_name: String(f.get("produce_name")).trim(), category: String(f.get("category")), description: String(f.get("description") ?? "").trim(), quantity: Number(f.get("quantity")), unit: String(f.get("unit")), delivery_location: String(f.get("delivery_location")).trim(), needed_by: String(f.get("needed_by") || "") || null, status: "published" };
+    const { error: insertError } = await supabase.from("buyer_requirements").insert(row);
+    if (insertError) setError(insertError.message); else { setNotice("Your buying requirement is now published."); setShowRequirementForm(false); await loadData(session.user.id); }
+  }
 
-        <section className="value-strip" id="trust">
-          <div className="value-item"><span className="value-icon"><Globe2 size={19} /></span><div><b>One connected ecosystem</b><small>Supply, demand and movement</small></div></div>
-          <div className="value-item"><span className="value-icon"><BarChart3 size={19} /></span><div><b>Clearer comparisons</b><small>Understand the details that matter</small></div></div>
-          <div className="value-item"><span className="value-icon"><MessageCircle size={19} /></span><div><b>Direct coordination</b><small>Bring conversations closer together</small></div></div>
-          <div className="value-item"><span className="value-icon"><BadgeCheck size={19} /></span><div><b>Trust by design</b><small>Transparent information and controls</small></div></div>
-        </section>
+  async function sendEnquiry(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!supabase || !session?.user || !enquiryTarget) return;
+    const f = new FormData(event.currentTarget);
+    const { error: insertError } = await supabase.from("enquiries").insert({ listing_id: enquiryTarget.id, buyer_id: session.user.id, seller_id: enquiryTarget.seller_id, message: String(f.get("message")).trim() });
+    if (insertError) setError(insertError.message); else { setNotice("Your enquiry has been sent to the seller."); setEnquiryTarget(null); await loadData(session.user.id); }
+  }
 
-        <section className="section marketplace-section" id="marketplace">
-          <div className="section-heading">
-            <div><div className="eyebrow">EXPLORE THE ECOSYSTEM</div><h2>What brings you to AgriBridge?</h2><p>Start with what you grow, what you need, or how you move it.</p></div>
-            <a className="text-link" href="#how-it-works">Explore the platform <ArrowRight size={16} /></a>
-          </div>
-          <div className="category-grid">
-            {categories.map(({ name, detail, icon: Icon }) => (
-              <a className="category-card" href="#how-it-works" key={name}>
-                <span className="category-icon"><Icon size={22} /></span>
-                <span className="category-copy"><b>{name}</b><small>{detail}</small></span>
-                <ArrowUpRight className="category-arrow" size={18} />
-              </a>
-            ))}
-          </div>
-          <div className="search-panel">
-            <div className="search-panel-copy"><Search size={19} /><span><b>Know what you are looking for?</b><small>Search and discovery tools will be available as the marketplace is built.</small></span></div>
-            <button className="button button-outline" disabled>Marketplace coming soon <ChevronDown size={15} /></button>
-          </div>
-        </section>
+  async function updateListingStatus(item: Listing, status: string) {
+    if (!supabase || !session?.user) return;
+    const { error: updateError } = await supabase.from("produce_listings").update({ status }).eq("id", item.id);
+    if (updateError) setError(updateError.message); else { setNotice("Listing updated."); await loadData(session.user.id); }
+  }
 
-        <section className="section how-section" id="how-it-works">
-          <div className="how-intro"><div className="eyebrow">A MORE CONNECTED JOURNEY</div><h2>Good connections<br />move things forward.</h2><p>AgriBridge is being designed to make the journey between agricultural supply, demand and transportation easier to understand and coordinate.</p></div>
-          <div className="steps">
-            {steps.map((step) => <article className="step" key={step.number}><span className="step-number">{step.number}</span><div><h3>{step.title}</h3><p>{step.text}</p></div><ArrowUpRight size={18} /></article>)}
-          </div>
-        </section>
+  if (!isSupabaseConfigured) return <div className="config-screen"><div className="auth-brand"><span className="brand-mark"><Leaf /></span> AgriBridge</div><div className="auth-card"><CircleAlert size={30} /><h1>Supabase connection needed</h1><p>The website code is ready to connect, but its hosting environment still needs the Supabase Project URL and publishable key.</p><p>Add <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> to your Cloudflare Pages environment variables, then redeploy.</p></div></div>;
 
-        <section className="closing-cta" id="support">
-          <div className="cta-icon"><CircleHelp size={23} /></div>
-          <div><span className="eyebrow">BUILT FOR REAL-WORLD AGRICULTURE</span><h2>A better connection starts with a conversation.</h2><p>AgriBridge is under active development. The next step is building the secure tools behind this experience.</p></div>
-          <span className="button button-light cta-coming-soon">More ways to connect soon <ArrowUpRight size={16} /></span>
-        </section>
-      </main>
+  if (loading) return <div className="loading-screen"><div className="loader" /><span>Loading AgriBridge…</span></div>;
 
-      <footer className="footer">
-        <a className="brand brand-footer" href="#home"><span className="brand-mark"><Leaf size={19} /></span><span>Agri<span>Bridge</span></span></a>
-        <p>Bridging agriculture and technology.</p>
-        <span className="footer-note">© {new Date().getFullYear()} AgriBridge. Built with purpose.</span>
-      </footer>
+  if (!session) return (
+    <div className="auth-screen">
+      <div className="auth-side"><a className="brand auth-brand" href="#"><span className="brand-mark"><Leaf /></span><span>Agri<span>Bridge</span></span></a><div className="auth-message"><span className="eyebrow">AGRICULTURE, CONNECTED</span><h1>Better connections.<br /><em>Stronger harvests.</em></h1><p>Discover produce, share what you grow and connect directly with agricultural buyers and sellers.</p><div className="auth-points"><span><ShieldCheck size={17} /> Secure account access</span><span><Sprout size={17} /> A marketplace built for agriculture</span><span><Truck size={17} /> Clearer coordination</span></div></div><small className="auth-foot">AgriBridge · Bridging agriculture and technology</small></div>
+      <div className="auth-main"><form className="auth-card" onSubmit={handleAuth}><div className="auth-mobile-brand"><Leaf size={21} /> AgriBridge</div><span className="eyebrow">{authMode === "signup" ? "JOIN THE AGRIBRIDGE COMMUNITY" : "WELCOME BACK"}</span><h2>{authMode === "signup" ? "Create your account" : "Log in to AgriBridge"}</h2><p className="form-intro">{authMode === "signup" ? "Get started with a free account." : "Enter your details to continue."}</p>
+        {authMode === "signup" && <><label>Full name<input name="full_name" autoComplete="name" placeholder="Your full name" required /></label><label>I want to join as<select name="account_type"><option value="buyer">Buyer</option><option value="seller">Seller / Farmer</option><option value="both">Both buyer and seller</option></select></label></>}
+        <label>Email address<input name="email" type="email" autoComplete="email" placeholder="you@example.com" required /></label><label>Password<input name="password" type="password" minLength={6} autoComplete={authMode === "signup" ? "new-password" : "current-password"} placeholder="At least 6 characters" required /></label>
+        {error && <div className="alert alert-error"><CircleAlert size={16} />{error}</div>}{notice && <div className="alert alert-success"><CheckCircle2 size={16} />{notice}</div>}
+        <button className="button button-primary auth-submit" disabled={authBusy}>{authBusy ? "Please wait…" : authMode === "signup" ? "Create account" : "Log in"} <ArrowRight size={17} /></button><p className="auth-switch">{authMode === "signup" ? "Already have an account?" : "New to AgriBridge?"} <button type="button" onClick={() => { setAuthMode(authMode === "signup" ? "login" : "signup"); setError(""); setNotice(""); }}>{authMode === "signup" ? "Log in" : "Create account"}</button></p><p className="privacy-note"><ShieldCheck size={13} /> Your account is protected by Supabase authentication and database access policies.</p></form></div>
     </div>
   );
+
+  const name = profile?.full_name || session.user.email?.split("@")[0] || "Member";
+  const myListings = listings.filter(x => x.seller_id === session.user.id);
+  const myRequirements = requirements.filter(x => x.buyer_id === session.user.id);
+  const myEnquiries = enquiries.filter(x => x.buyer_id === session.user.id || x.seller_id === session.user.id);
+
+  return <div className="app-shell">
+    <aside className="sidebar"><a className="brand sidebar-brand" href="#"><span className="brand-mark"><Leaf /></span><span>Agri<span>Bridge</span></span></a><div className="side-label">WORKSPACE</div><button className={tab === "market" ? "side-link active" : "side-link"} onClick={() => setTab("market")}><Search size={18} /> Explore marketplace</button><button className={tab === "listings" ? "side-link active" : "side-link"} onClick={() => setTab("listings")}><Package size={18} /> My produce listings</button><button className={tab === "requirements" ? "side-link active" : "side-link"} onClick={() => setTab("requirements")}><Sprout size={18} /> My requirements</button><button className={tab === "enquiries" ? "side-link active" : "side-link"} onClick={() => setTab("enquiries")}><BadgeCheck size={18} /> My enquiries</button><div className="sidebar-bottom"><div className="sidebar-help"><ShieldCheck size={18} /><span><b>Built for clearer trade</b><small>Your data is protected by access policies.</small></span></div><div className="user-block"><span className="avatar">{name.charAt(0).toUpperCase()}</span><span className="user-meta"><b>{name}</b><small>{profile?.account_type ?? "member"}</small></span><button className="icon-button" onClick={signOut} title="Log out"><LogOut size={17} /></button></div></div></aside>
+    <main className="workspace"><header className="workspace-top"><div><span className="workspace-kicker">AGRIBRIDGE WORKSPACE</span><h1>{tab === "market" ? "Explore marketplace" : tab === "listings" ? "My produce listings" : tab === "requirements" ? "My buying requirements" : "My enquiries"}</h1></div><div className="top-user"><span className="avatar">{name.charAt(0).toUpperCase()}</span><span>{name}</span><button className="icon-button" onClick={signOut} title="Log out"><LogOut size={17} /></button></div></header>
+      {error && <div className="alert alert-error workspace-alert"><CircleAlert size={16} />{error}<button onClick={() => setError("")}>Dismiss</button></div>}{notice && <div className="alert alert-success workspace-alert"><CheckCircle2 size={16} />{notice}<button onClick={() => setNotice("")}>Dismiss</button></div>}
+      {tab === "market" && <><section className="welcome-banner"><div><span className="eyebrow">YOUR AGRICULTURAL NETWORK</span><h2>Good morning, {name.split(" ")[0]}.</h2><p>Find produce, explore supply and connect with people across the agricultural value chain.</p></div><div className="welcome-art"><Sprout size={70} strokeWidth={1.1} /></div></section><div className="stat-grid"><div className="stat-card"><span>Published produce</span><b>{listings.filter(x => x.status === "published").length}</b><small>Available in the marketplace</small></div><div className="stat-card"><span>Buying requirements</span><b>{requirements.filter(x => x.status === "published").length}</b><small>Active buyer needs</small></div><div className="stat-card"><span>Your conversations</span><b>{myEnquiries.length}</b><small>Enquiries you are part of</small></div></div><section className="content-section"><div className="content-heading"><div><span className="eyebrow">DISCOVER OPPORTUNITIES</span><h2>Available produce</h2><p>Explore published offers from sellers.</p></div><button className="button button-primary" onClick={() => setShowListingForm(true)}><Plus size={17} /> List produce</button></div><div className="filter-row"><div className="search-field"><Search size={17} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search produce or location…" /></div><select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}><option>All</option><option>Grains & cereals</option><option>Fruits</option><option>Vegetables</option><option>Pulses</option><option>Other</option></select></div><div className="listing-grid">{filteredListings.map(item => <article className="produce-card" key={item.id}><div className="produce-card-top"><span className="category-pill">{item.category || "Produce"}</span><span className="status-pill">{item.status}</span></div><h3>{item.produce_name}</h3><p className="produce-description">{item.description || "Contact the seller for more information about this produce."}</p><div className="produce-facts"><span><Package size={15} /> {Number(item.quantity).toLocaleString("en-IN")} {item.unit}</span><span>⌖ {item.location}</span><span>Available: {dateLabel(item.available_from)}</span></div><div className="produce-card-bottom"><b>{money(item.asking_price)}</b>{item.seller_id === session.user.id ? <button className="button button-outline small-button" onClick={() => updateListingStatus(item, "closed")}>Close listing</button> : <button className="button button-primary small-button" onClick={() => setEnquiryTarget(item)}>Contact seller <ArrowRight size={14} /></button>}</div></article>)}{filteredListings.length === 0 && <div className="empty-state"><Package size={27} /><b>No published produce found</b><span>Try another search or be the first to list produce.</span><button className="button button-outline small-button" onClick={() => setShowListingForm(true)}>Create a listing</button></div>}</div></section><section className="content-section"><div className="content-heading"><div><span className="eyebrow">BUYER DEMAND</span><h2>What buyers are looking for</h2><p>Published requirements from buyers.</p></div><button className="button button-outline" onClick={() => setShowRequirementForm(true)}><Plus size={16} /> Post requirement</button></div><div className="requirement-list">{requirements.filter(x => x.status === "published").map(item => <div className="requirement-row" key={item.id}><div className="requirement-icon"><Sprout size={19} /></div><div className="requirement-main"><b>{item.produce_name}</b><span>{Number(item.quantity).toLocaleString("en-IN")} {item.unit} · Delivery: {item.delivery_location}</span></div><div className="requirement-side"><b>{item.category || "Produce"}</b><small>Needed by {dateLabel(item.needed_by)}</small></div></div>)}{requirements.filter(x => x.status === "published").length === 0 && <div className="empty-inline">No buyer requirements have been published yet.</div>}</div></section></>}
+      {tab === "listings" && <section className="content-section standalone"><div className="content-heading"><div><span className="eyebrow">SELLER WORKSPACE</span><h2>Manage your produce</h2><p>Create and manage your published produce offers.</p></div><button className="button button-primary" onClick={() => setShowListingForm(true)}><Plus size={17} /> New listing</button></div><div className="listing-grid">{myListings.map(item => <article className="produce-card" key={item.id}><div className="produce-card-top"><span className="category-pill">{item.category || "Produce"}</span><span className="status-pill">{item.status}</span></div><h3>{item.produce_name}</h3><p className="produce-description">{item.description || "No description added."}</p><div className="produce-facts"><span>{Number(item.quantity).toLocaleString("en-IN")} {item.unit}</span><span>{item.location}</span></div><div className="produce-card-bottom"><b>{money(item.asking_price)}</b>{item.status !== "closed" && <button className="button button-outline small-button" onClick={() => updateListingStatus(item, item.status === "published" ? "paused" : "published")}>{item.status === "published" ? "Pause listing" : "Publish listing"}</button>}</div></article>)}{myListings.length === 0 && <div className="empty-state"><Package size={27} /><b>You have not listed produce yet</b><span>Create your first offer to make it visible to buyers.</span><button className="button button-primary small-button" onClick={() => setShowListingForm(true)}>Create listing</button></div>}</div></section>}
+      {tab === "requirements" && <section className="content-section standalone"><div className="content-heading"><div><span className="eyebrow">BUYER WORKSPACE</span><h2>Your buying requirements</h2><p>Tell sellers what produce you need.</p></div><button className="button button-primary" onClick={() => setShowRequirementForm(true)}><Plus size={17} /> New requirement</button></div><div className="requirement-list">{myRequirements.map(item => <div className="requirement-row" key={item.id}><div className="requirement-icon"><Sprout size={19} /></div><div className="requirement-main"><b>{item.produce_name} <span className="status-pill">{item.status}</span></b><span>{Number(item.quantity).toLocaleString("en-IN")} {item.unit} · Delivery: {item.delivery_location}</span></div><div className="requirement-side"><b>{item.category || "Produce"}</b><small>Needed by {dateLabel(item.needed_by)}</small></div></div>)}{myRequirements.length === 0 && <div className="empty-state"><Sprout size={27} /><b>No requirements yet</b><span>Post what you need and make your demand visible.</span><button className="button button-primary small-button" onClick={() => setShowRequirementForm(true)}>Post requirement</button></div>}</div></section>}
+      {tab === "enquiries" && <section className="content-section standalone"><div className="content-heading"><div><span className="eyebrow">CONVERSATIONS</span><h2>Your enquiries</h2><p>Enquiries you have sent or received.</p></div></div><div className="enquiry-list">{myEnquiries.map(item => <article className="enquiry-card" key={item.id}><div><span className="status-pill">{item.status}</span><b>{item.buyer_id === session.user.id ? "Enquiry sent" : "Enquiry received"}</b></div><p>{item.message}</p><small>{new Date(item.created_at).toLocaleString("en-IN")}</small></article>)}{myEnquiries.length === 0 && <div className="empty-state"><BadgeCheck size={27} /><b>No enquiries yet</b><span>Contact a seller from a produce listing to start a conversation.</span></div>}</div></section>}
+    </main>
+    {showListingForm && <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setShowListingForm(false); }}><form className="modal-card" onSubmit={createListing}><div className="modal-heading"><div><span className="eyebrow">SELLER FORM</span><h2>List your produce</h2></div><button type="button" className="icon-button" onClick={() => setShowListingForm(false)}><X /></button></div><label>Produce name<input name="produce_name" placeholder="e.g. Sharbati wheat" required /></label><div className="form-grid"><label>Category<select name="category"><option>Grains & cereals</option><option>Fruits</option><option>Vegetables</option><option>Pulses</option><option>Other</option></select></label><label>Quantity<input name="quantity" type="number" min="0.01" step="0.01" placeholder="e.g. 500" required /></label></div><div className="form-grid"><label>Unit<select name="unit"><option>kg</option><option>quintal</option><option>tonne</option><option>crate</option><option>bag</option></select></label><label>Asking price (₹, optional)<input name="asking_price" type="number" min="0" step="0.01" placeholder="Leave blank to discuss" /></label></div><label>Location<input name="location" placeholder="Village, district, state" required /></label><label>Available from<input name="available_from" type="date" /></label><label>Description<textarea name="description" rows={3} placeholder="Quality, harvest details, packaging or other useful information" /></label><div className="modal-actions"><button type="button" className="button button-outline" onClick={() => setShowListingForm(false)}>Cancel</button><button className="button button-primary">Publish listing <ArrowRight size={15} /></button></div></form></div>}
+    {showRequirementForm && <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setShowRequirementForm(false); }}><form className="modal-card" onSubmit={createRequirement}><div className="modal-heading"><div><span className="eyebrow">BUYER FORM</span><h2>Post a buying requirement</h2></div><button type="button" className="icon-button" onClick={() => setShowRequirementForm(false)}><X /></button></div><label>Produce needed<input name="produce_name" placeholder="e.g. Basmati rice" required /></label><div className="form-grid"><label>Category<select name="category"><option>Grains & cereals</option><option>Fruits</option><option>Vegetables</option><option>Pulses</option><option>Other</option></select></label><label>Quantity<input name="quantity" type="number" min="0.01" step="0.01" required /></label></div><div className="form-grid"><label>Unit<select name="unit"><option>kg</option><option>quintal</option><option>tonne</option><option>crate</option><option>bag</option></select></label><label>Needed by<input name="needed_by" type="date" /></label></div><label>Delivery location<input name="delivery_location" placeholder="City, district, state" required /></label><label>Additional details<textarea name="description" rows={3} placeholder="Specifications, quality expectations or packaging" /></label><div className="modal-actions"><button type="button" className="button button-outline" onClick={() => setShowRequirementForm(false)}>Cancel</button><button className="button button-primary">Publish requirement <ArrowRight size={15} /></button></div></form></div>}
+    {enquiryTarget && <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setEnquiryTarget(null); }}><form className="modal-card" onSubmit={sendEnquiry}><div className="modal-heading"><div><span className="eyebrow">CONTACT THE SELLER</span><h2>Enquire about {enquiryTarget.produce_name}</h2></div><button type="button" className="icon-button" onClick={() => setEnquiryTarget(null)}><X /></button></div><p className="form-intro">Your message will be visible to the seller and you in My enquiries.</p><label>Message<textarea name="message" rows={5} maxLength={3000} required placeholder="Hello, I am interested in this produce. Please share more details…" /></label><div className="modal-actions"><button type="button" className="button button-outline" onClick={() => setEnquiryTarget(null)}>Cancel</button><button className="button button-primary">Send enquiry <ArrowRight size={15} /></button></div></form></div>}
+  </div>;
 }
 
 export default App;
