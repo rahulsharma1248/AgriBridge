@@ -87,8 +87,17 @@ function App() {
           setNotice("Check your email for the confirmation link. After confirming, return here and log in.");
         }
       } else {
-        const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
         if (authError) throw authError;
+        const metadata = data.user.user_metadata ?? {};
+        const accountType = metadata.account_type;
+        if (accountType === "buyer" || accountType === "seller" || accountType === "both") {
+          const { error: profileError } = await supabase.from("profiles").update({
+            full_name: String(metadata.full_name ?? ""),
+            account_type: accountType
+          }).eq("id", data.user.id);
+          if (profileError) throw profileError;
+        }
       }
     } catch (e) { setError(e instanceof Error ? e.message : "Authentication failed."); }
     finally { setAuthBusy(false); }
