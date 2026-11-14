@@ -142,3 +142,19 @@ When requirements conflict, stop and seek clarification.
 Treat AgriBridge as a long-term software engineering project, not a disposable prototype.
 
 Prioritize correctness, security, maintainability and adherence to documented requirements over speed or unnecessary complexity.
+
+
+## 13. Accepted implementation baseline
+
+Read `Docs/08_ARCHITECTURE_DECISIONS.md` before implementation. It records the accepted initial application and deployment baseline.
+
+- Frontend: React + TypeScript + Vite, client-rendered SPA.
+- Backend: Supabase PostgreSQL, Auth, Storage, RLS and Edge Functions.
+- Source control: GitHub.
+- Planned frontend hosting: Cloudflare Pages.
+- Build command: `npm run build`; output: `dist/`.
+- AI provider credentials and all privileged secrets must remain server-side.
+- Cloudflare Pages must serve SPA routes through the `public/_redirects` fallback.
+- Do not introduce SSR or a continuously running Node/Python server without an approved architecture change.
+
+The project is being built incrementally. A committed file is not proof that it compiles or is secure; report verification status accurately.
