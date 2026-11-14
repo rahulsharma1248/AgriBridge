@@ -133,7 +133,7 @@ function App() {
         <section className="closing-cta" id="support">
           <div className="cta-icon"><CircleHelp size={23} /></div>
           <div><span className="eyebrow">BUILT FOR REAL-WORLD AGRICULTURE</span><h2>A better connection starts with a conversation.</h2><p>AgriBridge is under active development. The next step is building the secure tools behind this experience.</p></div>
-          <a className="button button-light" href="mailto:hello@agribridge.in">Contact the team <ArrowUpRight size={16} /></a>
+          <span className="button button-light cta-coming-soon">More ways to connect soon <ArrowUpRight size={16} /></span>
         </section>
       </main>
 
