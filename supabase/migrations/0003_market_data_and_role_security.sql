@@ -15,7 +15,7 @@ declare
   requested_type text;
 begin
   requested_type := new.raw_user_meta_data ->> 'account_type';
-  if requested_type not in ('buyer', 'seller', 'both') then
+  if requested_type is null or requested_type not in ('buyer', 'seller', 'both') then
     requested_type := 'buyer';
   end if;
 
@@ -166,9 +166,9 @@ set source_record_id = lower(concat_ws(
 ))
 where source_record_id is null;
 
+alter table public.mandi_prices alter column source_record_id set not null;
 create unique index if not exists idx_mandi_prices_source_record_id
-on public.mandi_prices(source_record_id)
-where source_record_id is not null;
+on public.mandi_prices(source_record_id);
 
 create index if not exists idx_mandi_prices_location_date
 on public.mandi_prices(state, district, market, arrival_date desc);
