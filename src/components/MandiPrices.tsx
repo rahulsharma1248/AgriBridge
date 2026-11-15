@@ -89,11 +89,9 @@ export default function MandiPrices() {
   const latestFetched = filtered.reduce<string | null>((latest, row) =>
     !latest || row.fetched_at > latest ? row.fetched_at : latest, null);
   const latestModal = filtered.find(x => x.arrival_date === latestDate && x.modal_price != null)?.modal_price ?? null;
-  const averageModal = useMemo(() => {
-    const values = filtered.filter(x => x.arrival_date === latestDate && x.modal_price != null)
-      .map(x => Number(x.modal_price));
-    return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
-  }, [filtered, latestDate]);
+  const latestMarketCount = new Set(filtered
+    .filter(x => x.arrival_date === latestDate)
+    .map(x => [x.state, x.district ?? "", x.market].join("|"))).size;
   const clearFilters = () => {
     setState("All"); setDistrict("All"); setMarket("All"); setCommodity("All"); setQuery("");
   };
@@ -118,8 +116,8 @@ export default function MandiPrices() {
     <div className="stat-grid mandi-stat-grid">
       <div className="stat-card"><span>Price observations</span><b>{filtered.length.toLocaleString("en-IN")}</b><small>Matching current filters</small></div>
       <div className="stat-card"><span>Latest report date</span><b>{formatDate(latestDate)}</b><small>Arrival / report date</small></div>
-      <div className="stat-card"><span>Latest modal price</span><b>{formatPrice(latestModal)}</b><small>First matching latest observation</small></div>
-      <div className="stat-card"><span>Average modal price</span><b>{formatPrice(averageModal)}</b><small>Latest date, filtered records</small></div>
+      <div className="stat-card"><span>Latest modal price</span><b>{formatPrice(latestModal)}</b><small>Latest matching observation</small></div>
+      <div className="stat-card"><span>Markets reporting</span><b>{latestMarketCount.toLocaleString("en-IN")}</b><small>On the latest report date</small></div>
     </div>
 
     <div className="filter-row mandi-filters">
