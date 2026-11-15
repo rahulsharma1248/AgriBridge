@@ -57,8 +57,11 @@ function mapRecord(record: Record<string, unknown>, fetchedAt: string) {
 
   const variety = clean(record.variety);
   const grade = clean(record.grade);
+  // Match the database's existing unique key. The source may return multiple
+  // grades for the same market/commodity/variety/date; the current table
+  // permits only one row for that combination.
   const sourceRecordId = [
-    state, district ?? "", market, commodity, variety ?? "", grade ?? "", arrivalDate,
+    state, district ?? "", market, commodity, variety ?? "", arrivalDate,
   ].join("|").toLowerCase();
 
   return {
@@ -136,6 +139,8 @@ Deno.serve(async (req) => {
       for (const record of records) {
         const mapped = mapRecord(record, fetchedAt);
         if (mapped) {
+          // Keep one row per existing database unique key. Different grades
+          // for the same observation cannot coexist under the current schema.
           allRows.set(mapped.source_record_id, mapped);
           accepted++;
         }
