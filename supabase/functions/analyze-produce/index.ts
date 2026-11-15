@@ -1,7 +1,7 @@
 // Deploy as Supabase Edge Function: analyze-produce
-// Required secret: OPENAI_API_KEY
+// Required secret: GEMINI_API_KEY
 // Uses Supabase's injected SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.
-// This function is advisory visual assistance, not certified grading.
+// Advisory visual assistance only; not certified grading or food-safety assessment.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const cors = {
@@ -12,6 +12,15 @@ const cors = {
 const reply = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
+function toBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return reply({ error: "Method not allowed" }, 405);
@@ -20,8 +29,8 @@ Deno.serve(async (req) => {
 
   const url = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const openAiKey = Deno.env.get("OPENAI_API_KEY");
-  if (!openAiKey) return reply({ error: "AI analysis is not configured yet." }, 503);
+  const geminiKey = Deno.env.get("GEMINI_API_KEY");
+  if (!geminiKey) return reply({ error: "Gemini AI is not configured yet." }, 503);
 
   const userClient = createClient(url, Deno.env.get("SUPABASE_ANON_KEY")!, {
     global: { headers: { Authorization: authHeader } },
@@ -49,36 +58,54 @@ Deno.serve(async (req) => {
     listingId = listing.id;
   }
 
-  const aiResponse = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: { Authorization: "Bearer " + openAiKey, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "gpt-4.1-mini",
-      input: [{
-        role: "user",
-        content: [
-          { type: "input_text", text: "Inspect this agricultural produce photo. Return concise JSON with: visible_product, visible_appearance, visible_defects (array), image_limitations (array), suggested_questions_for_seller (array). Only describe what is visibly supported. Do not infer pesticide residues, food safety, internal quality, exact grade, origin, or certification. State uncertainty clearly. This is advisory visual assistance, not certified grading." },
-          { type: "input_image", image_url: signed.signedUrl, detail: "high" }
-        ]
-      }],
-      text: { format: { type: "json_object" } }
-    })
-  });
+  const imageResponse = await fetch(signed.signedUrl);
+  if (!imageResponse.ok) return reply({ error: "Could not download the uploaded image for analysis." }, 400);
+  const imageBytes = new Uint8Array(await imageResponse.arrayBuffer());
+  if (imageBytes.length > 5 * 1024 * 1024) return reply({ error: "Image is larger than the 5 MB analysis limit." }, 413);
+  const mimeType = imageResponse.headers.get("content-type")?.split(";")[0] || "image/jpeg";
+  if (!["image/jpeg", "image/png", "image/webp"].includes(mimeType)) {
+    return reply({ error: "Only JPEG, PNG, and WebP images are supported." }, 415);
+  }
+
+  const prompt = "Inspect this agricultural produce photo. Return concise JSON with these keys: visible_product (string), visible_appearance (string), visible_defects (array of strings), image_limitations (array of strings), suggested_questions_for_seller (array of strings). Only describe what is visibly supported. Do not infer pesticide residues, food safety, internal quality, exact grade, origin, or certification. State uncertainty clearly. This is advisory visual assistance, not certified grading.";
+  const aiResponse = await fetch(
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=" + encodeURIComponent(geminiKey),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{
+          role: "user",
+          parts: [
+            { text: prompt },
+            { inline_data: { mime_type: mimeType, data: toBase64(imageBytes) } },
+          ],
+        }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          temperature: 0.2,
+          maxOutputTokens: 700,
+        },
+      }),
+    },
+  );
   if (!aiResponse.ok) {
     const detail = await aiResponse.text();
-    return reply({ error: "AI provider request failed.", detail: detail.slice(0, 400) }, 502);
+    return reply({ error: "Gemini request failed. Check API key, model access, or free-tier quota.", detail: detail.slice(0, 500) }, 502);
   }
   const result = await aiResponse.json();
-  const outputText = result.output?.flatMap((item: any) => item.content ?? [])
-    .find((item: any) => item.type === "output_text")?.text;
-  if (!outputText) return reply({ error: "AI provider returned no analysis." }, 502);
+  const outputText = result.candidates?.[0]?.content?.parts
+    ?.map((part: { text?: string }) => part.text ?? "").join("").trim();
+  if (!outputText) return reply({ error: "Gemini returned no analysis. The image may need to be clearer." }, 502);
+
   let analysis: unknown;
-  try { analysis = JSON.parse(outputText); } catch { return reply({ error: "AI response was not valid structured output." }, 502); }
+  try { analysis = JSON.parse(outputText); }
+  catch { return reply({ error: "Gemini response was not valid structured JSON." }, 502); }
 
   const { data: saved, error: saveError } = await admin.from("produce_ai_analyses").insert({
     listing_id: listingId, user_id: auth.user.id, image_path: imagePath,
-    model_name: "gpt-4.1-mini", analysis,
-    disclaimer: "AI-generated visual observations only; not certified grading, a food-safety assessment, or a guarantee."
+    model_name: "gemini-3.1-flash-lite", analysis,
+    disclaimer: "AI-generated visual observations only; not certified grading, a food-safety assessment, or a guarantee.",
   }).select("id,analysis,disclaimer,created_at").single();
   if (saveError) return reply({ error: "Analysis completed but could not be saved." }, 500);
   return reply(saved);
