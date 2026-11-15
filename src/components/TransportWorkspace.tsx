@@ -1,4 +1,5 @@
-import { FormEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
 import { supabase } from "../lib/supabase";
 
 type TransportProfile = { id: string; user_id: string; business_name: string; contact_phone: string; vehicle_types: string[]; service_areas: string[]; is_available: boolean; verification_status: string };
