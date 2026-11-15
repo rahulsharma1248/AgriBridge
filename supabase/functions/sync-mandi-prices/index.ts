@@ -141,7 +141,15 @@ Deno.serve(async (req) => {
         if (mapped) {
           // Keep one row per existing database unique key. Different grades
           // for the same observation cannot coexist under the current schema.
-          allRows.set(mapped.source_record_id, mapped);
+          const uniqueKey = JSON.stringify([
+            mapped.state,
+            mapped.district,
+            mapped.market,
+            mapped.commodity,
+            mapped.variety,
+            mapped.arrival_date,
+          ]);
+          allRows.set(uniqueKey, mapped);
           accepted++;
         }
       }
@@ -173,7 +181,9 @@ Deno.serve(async (req) => {
     const batch = rows.slice(offset, offset + 500);
     const { error } = await admin
       .from("mandi_prices")
-      .upsert(batch, { onConflict: "source_record_id" });
+      .upsert(batch, {
+        onConflict: "state,district,market,commodity,variety,arrival_date",
+      });
     if (error) {
       return reply({
         success: false,
