@@ -23,14 +23,21 @@ Deno.serve(async (req) => {
   if (!upstream.ok) return Response.json({ error: "Government data source returned " + upstream.status }, { status: 502 });
   const payload = await upstream.json();
   const records = Array.isArray(payload.records) ? payload.records : [];
+  const normalizeDate = (value: unknown) => {
+    const raw = String(value ?? "").trim();
+    if (/^\\d{4}-\\d{2}-\\d{2}$/.test(raw)) return raw;
+    const match = raw.match(/^(\\d{1,2})[\\/-](\\d{1,2})[\\/-](\\d{4})$/);
+    if (!match) return "";
+    return match[3] + "-" + match[2].padStart(2, "0") + "-" + match[1].padStart(2, "0");
+  };
   const rows = records.map((r: Record<string, unknown>) => ({
     source_record_id: String(r.id ?? [r.state, r.district, r.market, r.commodity, r.variety, r.arrival_date].join("|")),
     state: String(r.state ?? ""),
-    district: r.district ? String(r.district) : null,
+    district: r.district ? String(r.district) : "",
     market: String(r.market ?? ""),
     commodity: String(r.commodity ?? ""),
-    variety: r.variety ? String(r.variety) : null,
-    arrival_date: String(r.arrival_date ?? r.date ?? ""),
+    variety: r.variety ? String(r.variety) : "",
+    arrival_date: normalizeDate(r.arrival_date ?? r.date),
     min_price: Number(r.min_price ?? r.min_price_rs ?? 0) || null,
     max_price: Number(r.max_price ?? r.max_price_rs ?? 0) || null,
     modal_price: Number(r.modal_price ?? r.modal_price_rs ?? 0) || null,
