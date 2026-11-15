@@ -248,3 +248,12 @@ button{font:inherit}
 .transport-request b{font-size:12px;color:#36563d}
 .transport-request span,.transport-request small{font-size:10px;color:#7c897e}
 @media(max-width:760px){.transport-grid{grid-template-columns:1fr}.transport-request{align-items:flex-start;flex-direction:column}}
+
+/* Source-attributed mandi price table */
+.market-data-note{padding:12px 14px;background:#f0f5ea;border:1px solid #e2eadc;border-radius:8px;color:#5d735e;font-size:10px;line-height:1.6;margin:16px 0}
+.mandi-table-wrap{width:100%;overflow-x:auto;background:#fff;border:1px solid var(--line);border-radius:9px}
+.mandi-table{width:100%;border-collapse:collapse;min-width:760px;text-align:left}
+.mandi-table th{font-size:10px;color:#758477;background:#f5f8f2;padding:13px;border-bottom:1px solid var(--line);white-space:nowrap}
+.mandi-table td{font-size:11px;color:#455c49;padding:13px;border-bottom:1px solid #edf0eb}
+.mandi-table td small{display:block;font-size:9px;color:#879287;margin-top:5px}
+.mandi-table td b{color:#294b35}
