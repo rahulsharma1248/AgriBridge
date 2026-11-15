@@ -41,17 +41,24 @@ export default function MandiPrices() {
     if (!supabase) return;
     setLoading(true);
     setError("");
-    const { data, error: loadError } = await supabase
-      .from("mandi_prices")
-      .select("id,state,district,market,commodity,variety,grade,arrival_date,min_price,max_price,modal_price,source_name,source_url,fetched_at")
-      .order("arrival_date", { ascending: false })
-      .limit(2000);
-    if (loadError) {
-      setError(loadError.message);
-    } else {
-      const loaded = (data ?? []) as PriceRow[];
-      setRows(loaded);
+    const pageSize = 1000;
+    const maxRows = 25000;
+    const loaded: PriceRow[] = [];
+    for (let offset = 0; offset < maxRows; offset += pageSize) {
+      const { data, error: loadError } = await supabase
+        .from("mandi_prices")
+        .select("id,state,district,market,commodity,variety,grade,arrival_date,min_price,max_price,modal_price,source_name,source_url,fetched_at")
+        .order("arrival_date", { ascending: false })
+        .range(offset, offset + pageSize - 1);
+      if (loadError) {
+        setError(loadError.message);
+        break;
+      }
+      const page = (data ?? []) as PriceRow[];
+      loaded.push(...page);
+      if (page.length < pageSize) break;
     }
+    setRows(loaded);
     setLoading(false);
   }
 
@@ -144,6 +151,6 @@ export default function MandiPrices() {
           </tr>)}</tbody>
         </table>
       </div>}
-    <p className="market-data-footnote">Showing up to 2,000 most recent records. Market prices can vary by quality, grade, arrivals, quantity and negotiation. Verify the latest local quote before trading.</p>
+    <p className="market-data-footnote">Showing up to 25,000 most recent records. Market prices can vary by quality, grade, arrivals, quantity and negotiation. Verify the latest local quote before trading.</p>
   </section>;
 }
