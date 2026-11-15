@@ -44,6 +44,17 @@ begin
 end;
 $$;
 
+-- Reconcile profiles created before the original signup trigger copied account_type metadata.
+-- This runs before the role-change guard is installed.
+update public.profiles p
+set account_type = case
+  when u.raw_user_meta_data ->> 'account_type' in ('buyer', 'seller', 'both')
+    then u.raw_user_meta_data ->> 'account_type'
+  else 'buyer'
+end
+from auth.users u
+where u.id = p.id;
+
 drop trigger if exists prevent_profile_role_change on public.profiles;
 create trigger prevent_profile_role_change
 before update on public.profiles
