@@ -36,7 +36,6 @@ export default function MandiPrices() {
   const [commodity, setCommodity] = useState("All");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [lastLoaded, setLastLoaded] = useState<string | null>(null);
 
   async function load() {
     if (!supabase) return;
@@ -52,7 +51,6 @@ export default function MandiPrices() {
     } else {
       const loaded = (data ?? []) as PriceRow[];
       setRows(loaded);
-      setLastLoaded(new Date().toISOString());
     }
     setLoading(false);
   }
