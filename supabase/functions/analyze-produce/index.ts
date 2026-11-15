@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
 
   const prompt = "Inspect this agricultural produce photo. Return concise JSON with these keys: visible_product (string), visible_appearance (string), visible_defects (array of strings), image_limitations (array of strings), suggested_questions_for_seller (array of strings). Only describe what is visibly supported. Do not infer pesticide residues, food safety, internal quality, exact grade, origin, or certification. State uncertainty clearly. This is advisory visual assistance, not certified grading.";
   const aiResponse = await fetch(
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=" + encodeURIComponent(geminiKey),
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=" + encodeURIComponent(geminiKey),
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -104,7 +104,7 @@ Deno.serve(async (req) => {
 
   const { data: saved, error: saveError } = await admin.from("produce_ai_analyses").insert({
     listing_id: listingId, user_id: auth.user.id, image_path: imagePath,
-    model_name: "gemini-3.1-flash-lite", analysis,
+    model_name: "gemini-2.5-flash-lite", analysis,
     disclaimer: "AI-generated visual observations only; not certified grading, a food-safety assessment, or a guarantee.",
   }).select("id,analysis,disclaimer,created_at").single();
   if (saveError) return reply({ error: "Analysis completed but could not be saved." }, 500);
