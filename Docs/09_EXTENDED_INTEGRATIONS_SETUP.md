@@ -28,11 +28,16 @@ Set `OPENAI_API_KEY` in Supabase → Edge Functions → Secrets. The function us
 ### Mandi price sync secrets
 
 Set these Edge Function secrets:
-- `DATA_GOV_IN_API_KEY`: API key from data.gov.in
-- `AGMARKNET_RESOURCE_ID`: resource identifier for the official daily mandi-price dataset
+- `DATA_GOV_IN_API_KEY`: your API key from the Government of India's data.gov.in portal
 - `MARKET_PRICE_SYNC_TOKEN`: a long random token used only by a trusted scheduler
 
-The sync function writes source-attributed daily prices to `mandi_prices`. The public data.gov.in dataset is daily, not tick-by-tick real-time. The UI must show the report date and source, and stale prices must not be described as live.
+The resource ID is fixed in the function source as `9ef84268-d588-465a-a308-a864a43d0070` (Current Daily Price of Various Commodities from Various Markets / Mandi). The function retrieves pages of up to 100 records and upserts them using a stable source key. It returns a clear error if the source returns no usable records.
+
+After deploying the updated function, invoke it with HTTP POST and the header `x-sync-token: YOUR_MARKET_PRICE_SYNC_TOKEN`. Configure a trusted daily scheduler to repeat that request. Never put the API key or sync token in frontend environment variables.
+
+The public data.gov.in dataset is daily, not tick-by-tick real-time. The UI shows report dates, source attribution, and filters by state, district, market and commodity. Historical movement is only meaningful after multiple daily imports have accumulated; do not invent missing dates or describe stale prices as live.
+
+Apply `supabase/migrations/0003_market_data_and_role_security.sql` after migration 0002. It protects account roles at the database level and adds the stable source key and location indexes used by the updated importer.
 
 ## 3. Transport workflows
 
