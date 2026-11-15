@@ -120,10 +120,15 @@ drop policy if exists "Transport profiles are visible to authenticated users" on
 create policy "Transport profiles are visible to authenticated users"
 on public.transport_profiles for select to authenticated using (true);
 drop policy if exists "Users manage their own transport profile" on public.transport_profiles;
-create policy "Users manage their own transport profile"
-on public.transport_profiles for all to authenticated
-using (user_id = (select auth.uid()))
-with check (user_id = (select auth.uid()));
+drop policy if exists "Users can create an unverified transport profile" on public.transport_profiles;
+create policy "Users can create an unverified transport profile"
+on public.transport_profiles for insert to authenticated
+with check (user_id = (select auth.uid()) and verification_status = 'unverified');
+drop policy if exists "Users can update their unverified transport profile" on public.transport_profiles;
+create policy "Users can update their unverified transport profile"
+on public.transport_profiles for update to authenticated
+using (user_id = (select auth.uid()) and verification_status = 'unverified')
+with check (user_id = (select auth.uid()) and verification_status = 'unverified');
 
 drop policy if exists "Requesters and available providers can view transport requests" on public.transport_requests;
 create policy "Requesters and available providers can view transport requests"
