@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { RefreshCw, TrendingDown, TrendingUp } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { supabase } from "../lib/supabase";
 
 type PriceRow = {
