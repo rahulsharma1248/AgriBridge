@@ -257,3 +257,13 @@ button{font:inherit}
 .mandi-table td{font-size:11px;color:#455c49;padding:13px;border-bottom:1px solid #edf0eb}
 .mandi-table td small{display:block;font-size:9px;color:#879287;margin-top:5px}
 .mandi-table td b{color:#294b35}
+
+
+/* Mandi price dashboard filters and summary cards */
+.mandi-stat-grid{grid-template-columns:repeat(4,minmax(0,1fr));}
+.mandi-filters{align-items:center;flex-wrap:wrap;}
+.mandi-filters .search-field{min-width:220px;}
+.mandi-filters select{min-width:135px;max-width:190px;}
+.market-data-footnote{font-size:9px;line-height:1.6;color:#879287;margin:13px 0 0;}
+@media(max-width:1050px){.mandi-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media(max-width:760px){.mandi-filters .search-field{flex-basis:100%;}.mandi-filters select{flex:1;min-width:125px;max-width:none;}}
