@@ -5,7 +5,7 @@ import { supabase, isSupabaseConfigured } from "./lib/supabase";
 import TransportWorkspace from "./components/TransportWorkspace";
 import MandiPrices from "./components/MandiPrices";
 
-type Profile = { id: string; full_name: string | null; account_type: "buyer" | "seller" | "both" };
+type Profile = { id: string; full_name: string | null; account_type: "buyer" | "seller" | "both" | "logistics" };
 type Listing = { id: string; seller_id: string; produce_name: string; category: string | null; description: string | null; quantity: number; unit: string; asking_price: number | null; location: string; available_from: string | null; status: string; created_at: string; listing_images?: { object_path: string }[] };
 type Requirement = { id: string; buyer_id: string; produce_name: string; category: string | null; description: string | null; quantity: number; unit: string; delivery_location: string; needed_by: string | null; status: string; created_at: string };
 type Enquiry = { id: string; listing_id: string; buyer_id: string; seller_id: string; message: string; status: string; created_at: string };
@@ -97,7 +97,7 @@ function App() {
         if (authError) throw authError;
         const metadata = data.user.user_metadata ?? {};
         const accountType = metadata.account_type;
-        if (accountType === "buyer" || accountType === "seller" || accountType === "both") {
+        if (accountType === "buyer" || accountType === "seller" || accountType === "both" || accountType === "logistics") {
           const { error: profileError } = await supabase.from("profiles").update({
             full_name: String(metadata.full_name ?? ""),
             account_type: accountType
@@ -215,7 +215,7 @@ function App() {
     <div className="auth-screen">
       <div className="auth-side"><a className="brand auth-brand" href="#"><span className="brand-mark"><Leaf /></span><span>Agri<span>Bridge</span></span></a><div className="auth-message"><span className="eyebrow">AGRICULTURE, CONNECTED</span><h1>Better connections.<br /><em>Stronger harvests.</em></h1><p>Discover produce, share what you grow and connect directly with agricultural buyers and sellers.</p><div className="auth-points"><span><ShieldCheck size={17} /> Secure account access</span><span><Sprout size={17} /> A marketplace built for agriculture</span><span><Truck size={17} /> Clearer coordination</span></div></div><small className="auth-foot">AgriBridge · Bridging agriculture and technology</small></div>
       <div className="auth-main"><form className="auth-card" onSubmit={handleAuth}><div className="auth-mobile-brand"><Leaf size={21} /> AgriBridge</div><span className="eyebrow">{authMode === "signup" ? "JOIN THE AGRIBRIDGE COMMUNITY" : "WELCOME BACK"}</span><h2>{authMode === "signup" ? "Create your account" : "Log in to AgriBridge"}</h2><p className="form-intro">{authMode === "signup" ? "Get started with a free account." : "Enter your details to continue."}</p>
-        {authMode === "signup" && <><label>Full name<input name="full_name" autoComplete="name" placeholder="Your full name" required /></label><label>I want to join as<select name="account_type"><option value="buyer">Buyer</option><option value="seller">Seller / Farmer</option><option value="both">Both buyer and seller</option></select></label></>}
+        {authMode === "signup" && <><label>Full name<input name="full_name" autoComplete="name" placeholder="Your full name" required /></label><label>I want to join as<select name="account_type"><option value="buyer">Buyer</option><option value="seller">Seller / Farmer</option><option value="both">Both buyer and seller</option><option value="logistics">Logistics / Transport Provider</option></select></label></>}
         <label>Email address<input name="email" type="email" autoComplete="email" placeholder="you@example.com" required /></label><label>Password<input name="password" type="password" minLength={6} autoComplete={authMode === "signup" ? "new-password" : "current-password"} placeholder="At least 6 characters" required /></label>
         {error && <div className="alert alert-error"><CircleAlert size={16} />{error}</div>}{notice && <div className="alert alert-success"><CheckCircle2 size={16} />{notice}</div>}
         <button className="button button-primary auth-submit" disabled={authBusy}>{authBusy ? "Please wait…" : authMode === "signup" ? "Create account" : "Log in"} <ArrowRight size={17} /></button><p className="auth-switch">{authMode === "signup" ? "Already have an account?" : "New to AgriBridge?"} <button type="button" onClick={() => { setAuthMode(authMode === "signup" ? "login" : "signup"); setError(""); setNotice(""); }}>{authMode === "signup" ? "Log in" : "Create account"}</button></p><p className="privacy-note"><ShieldCheck size={13} /> Your account is protected by Supabase authentication and database access policies.</p></form></div>
